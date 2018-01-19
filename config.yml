@@ -1,10 +1,12 @@
 server:
-  addr: "0.0.0.0"
+  addr: "192.168.1.187"
   port: 9080
+  wsport: 9081
 
 mqtt:
   enabled: true
   url: 'tcp://192.168.1.145:1883'
-  publishtopic: 'sonoff/%v/status'
-  subscribetopic: 'sonoff/%v/set'
+  publishtopic: 'sonoff/%v/event'
+  subscribetopic: 'sonoff/%v/update'
+  switchtopic: 'sonoff/%v/switch'
   qos: 1

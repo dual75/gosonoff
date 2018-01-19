@@ -24,9 +24,10 @@ func checkErr(err error) {
 	}
 }
 
-func runServer(config sohttp.SonoffHttp, ch chan int) {
+func runHttpServer(config sohttp.SonoffHttp, ch chan int) {
 	serveraddr := fmt.Sprintf("%v:%d", config.Addr, config.Port)
-	err := http.ListenAndServeTLS(serveraddr, "server.cert", "server.key", nil)
+	httpServer := sohttp.HTTPServer{config.Addr, config.Port, config.Wsport}
+	err := http.ListenAndServeTLS(serveraddr, "server.cert", "server.key", httpServer)
 	outcome := 0
 	if err != nil {
 		log.Println(err)
@@ -35,7 +36,18 @@ func runServer(config sohttp.SonoffHttp, ch chan int) {
 	ch <- outcome
 }
 
-func selectEvents(serverch chan int, mqttch chan *somqtt.MqttIncomingMessage) (err error) {
+func runWsServer(config sohttp.SonoffHttp, ch chan int) {
+	serveraddr := fmt.Sprintf("%v:%d", config.Addr, config.Wsport)
+	err := http.ListenAndServeTLS(serveraddr, "server.cert", "server.key", *wsService)
+	outcome := 0
+	if err != nil {
+		log.Println(err)
+		outcome = 1
+	}
+	ch <- outcome
+}
+
+func selectEvents(serverch chan int, wschan chan int, mqttch chan *somqtt.MqttIncomingMessage) (err error) {
 	for {
 		select {
 		case outcome := <-serverch:
@@ -43,12 +55,26 @@ func selectEvents(serverch chan int, mqttch chan *somqtt.MqttIncomingMessage) (e
 				err = fmt.Errorf("Error, outcome %v from runServer", outcome)
 			}
 			break
+		case outcome := <-wschan:
+			if outcome == 1 {
+				err = fmt.Errorf("Error, outcome %v from wsService", outcome)
+			}
+			break
 		case message := <-mqttch:
-			err = wsService.WriteTo((*message).Deviceid, (*message).Message)
+			switch message.Code {
+			case somqtt.CodeAction:
+				err = wsService.WriteTo((*message).Deviceid, (*message).Message)
+			case somqtt.CodeSwitch:
+				flag := (*message).Message.(*string)
+				err = wsService.Switch((*message).Deviceid, *flag)
+			}
+
 			if err != nil {
 				log.Println(err)
 				wsService.RemoveDeviceConnection((*message).Deviceid)
 				mqttService.Unsubscribe((*message).Deviceid)
+			} else {
+				log.Printf("message code %v, processed without errors\n", message.Code)
 			}
 		}
 	}
@@ -72,12 +98,13 @@ func main() {
 	checkErr(err)
 
 	wsService = sows.NewWsService(mqttService)
-	http.HandleFunc("/ws", wsService.Handler)
-	http.HandleFunc("/", sohttp.ServeHTTP)
 
 	serverChan := make(chan int)
-	go runServer(config.Server, serverChan)
-	err = selectEvents(serverChan, (*mqttService).IncomingMessages)
+	go runHttpServer(config.Server, serverChan)
 
+	wsChan := make(chan int)
+	go runWsServer(config.Server, wsChan)
+
+	err = selectEvents(serverChan, wsChan, (*mqttService).IncomingMessages)
 	checkErr(err)
 }

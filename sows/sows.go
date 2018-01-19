@@ -58,7 +58,7 @@ func (ws *WsService) CleanClose(conn *websocket.Conn) {
 	(*ws).mux.Unlock()
 }
 
-func (ws *WsService) Handler(w http.ResponseWriter, r *http.Request) {
+func (ws WsService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	connection, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
@@ -73,14 +73,12 @@ func (ws *WsService) Handler(w http.ResponseWriter, r *http.Request) {
 			log.Println("read:", err)
 			break
 		}
-
 		mapRequest := req.(map[string]interface{})
 		response, err := ws.dispatchRequest(&mapRequest, connection)
 		if err != nil {
 			log.Println("dispatch:", err)
 			continue
 		}
-
 		w.Header().Set("Content-Type", sonoff.ContentType)
 		err = connection.WriteJSON(response)
 		if err != nil {
@@ -103,6 +101,7 @@ func (ws *WsService) dispatchRequest(req *map[string]interface{}, conn *websocke
 		log.Printf("Error in hook marshaling %v", err)
 	}
 
+	log.Printf("ws action: %s, %v", action, string(marshaled[:]))
 	switch action {
 	case "date":
 		result["date"] = time.Now()
@@ -116,15 +115,20 @@ func (ws *WsService) dispatchRequest(req *map[string]interface{}, conn *websocke
 			ws.connections[deviceid] = conn
 		}
 		go (*ws).mqttservice.Subscribe(deviceid)
+		go (*ws).mqttservice.Publish(deviceid, marshaled)
 	case "query":
 		result["params"] = make(map[string]interface{})
 	default:
 		result["error"] = WsReplyKo
 	}
+	marshaled, err = json.Marshal(result)
+	if err == nil {
+		log.Printf("sending reply to device %v: %v", deviceid, string(marshaled[:]))
+	}
 	return &result, err
 }
 
-func (ws *WsService) WriteTo(deviceId string, data *map[string]interface{}) (err error) {
+func (ws *WsService) WriteTo(deviceId string, data interface{}) (err error) {
 	ws.mux.Lock()
 	defer ws.mux.Unlock()
 
@@ -135,5 +139,21 @@ func (ws *WsService) WriteTo(deviceId string, data *map[string]interface{}) (err
 	if err == nil {
 		err = connection.WriteJSON(data)
 	}
+	return
+}
+
+func (ws *WsService) Switch(deviceId string, flag string) (err error) {
+	json_ := map[string]interface{}{
+		"action": "update",
+		"value": map[string]string{
+			"switch": flag,
+		},
+		"target": deviceId,
+	}
+	marshaled, err := json.Marshal(json_)
+	if err == nil {
+		log.Printf("sending switch command, %v", string(marshaled))
+	}
+	err = ws.WriteTo(deviceId, &json_)
 	return
 }

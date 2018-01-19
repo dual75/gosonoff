@@ -12,12 +12,21 @@ type SonoffMessageHandler struct {
 	MqttService *MqttService
 }
 
-func (s *SonoffMessageHandler) MessageHandler(client mqtt.Client, message mqtt.Message) {
+func (s *SonoffMessageHandler) ActionHandler(client mqtt.Client, message mqtt.Message) {
 	decoded := make(map[string]interface{})
 	err := json.Unmarshal(message.Payload(), &decoded)
 	if err == nil {
-		(*s).MqttService.IncomingMessages <- &MqttIncomingMessage{(*s).Deviceid, &decoded}
+		s.enqueue(&MqttIncomingMessage{CodeAction, (*s).Deviceid, &decoded})
 	} else {
 		log.Println(err)
 	}
+}
+
+func (s *SonoffMessageHandler) SwitchHandler(client mqtt.Client, message mqtt.Message) {
+	decoded := string(message.Payload()[:])
+	s.enqueue(&MqttIncomingMessage{CodeSwitch, (*s).Deviceid, &decoded})
+}
+
+func (s *SonoffMessageHandler) enqueue(message *MqttIncomingMessage) {
+	(*s).MqttService.IncomingMessages <- message
 }

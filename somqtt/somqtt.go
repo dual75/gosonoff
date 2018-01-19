@@ -7,9 +7,17 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
+const (
+	CodeAction = iota
+	CodeSwitch = iota
+)
+
+type MqttMessageCode int
+
 type MqttIncomingMessage struct {
+	Code     MqttMessageCode
 	Deviceid string
-	Message  *map[string]interface{}
+	Message  interface{}
 }
 
 type MqttService struct {
@@ -20,8 +28,9 @@ type MqttService struct {
 
 func (s *MqttService) Publish(deviceid string, message interface{}) {
 	if (*s).Client.IsConnected() {
-		topic := fmt.Sprintf((*s).Config.Publishtopic, deviceid)
-		token := (*s).Client.Publish(topic, (*s).Config.Qos, false, message)
+		subTopic := fmt.Sprintf((*s).Config.Publishtopic, deviceid)
+		log.Printf("publishing to subTopic %s, value: %v\n", message)
+		token := (*s).Client.Publish(subTopic, (*s).Config.Qos, false, message)
 		token.Wait()
 		if err := token.Error(); err != nil {
 			err = fmt.Errorf("Errore in publish: %v", err)
@@ -32,27 +41,53 @@ func (s *MqttService) Publish(deviceid string, message interface{}) {
 }
 
 func (s *MqttService) Subscribe(deviceid string) (err error) {
-	log.Printf("now subscribing to topic %v\n", deviceid)
-	topic := fmt.Sprintf((*s).Config.Subscribetopic, deviceid)
+	log.Printf("now subscribing to topics for %v\n", deviceid)
 	handler := &SonoffMessageHandler{deviceid, s}
-	token := (*s).Client.Subscribe(topic, (*s).Config.Qos, handler.MessageHandler)
+
+	topic := fmt.Sprintf((*s).Config.Subscribetopic, deviceid)
+	err = s.subscribeTopic(topic, handler.ActionHandler)
+	if err == nil {
+		topic = fmt.Sprintf((*s).Config.Switchtopic, deviceid)
+		err = (*s).subscribeTopic(topic, handler.SwitchHandler)
+	}
+	if err != nil {
+		s.Unsubscribe(deviceid)
+	}
+	return
+}
+
+func (s *MqttService) subscribeTopic(topic string, handler mqtt.MessageHandler) (err error) {
+	token := (*s).Client.Subscribe(topic, (*s).Config.Qos, handler)
 	token.Wait()
 	if err = token.Error(); err != nil {
 		err = fmt.Errorf("Error %v in Subscribe topic %v", err, topic)
+	} else {
+		log.Printf("subscription to  %v ok\n", topic)
 	}
-	log.Printf("subscription to  %v ok\n", topic)
 	return
 }
 
 func (s *MqttService) Unsubscribe(deviceid string) (err error) {
-	log.Printf("now unsubscribing to topic %v\n", deviceid)
-	topic := fmt.Sprintf((*s).Config.Subscribetopic, deviceid)
+	log.Printf("now unsubscribing from all topics %v\n", deviceid)
+	for _, topic := range []string{(*s).Config.Subscribetopic, (*s).Config.Switchtopic} {
+		complete := fmt.Sprintf(topic, deviceid)
+		err = s.unsubscribeTopic(deviceid, complete)
+		if err != nil {
+			log.Println(err)
+		}
+	}
+	return
+}
+
+func (s *MqttService) unsubscribeTopic(deviceid string, topic string) (err error) {
+	log.Printf("unsubscribe from topic %v\n", topic)
 	token := (*s).Client.Unsubscribe(topic)
 	token.Wait()
 	if err = token.Error(); err != nil {
 		err = fmt.Errorf("Error %v in Unsubscribe topic %v", err, topic)
+	} else {
+		log.Printf("unsubscription to  %v ok\n", topic)
 	}
-	log.Printf("unsubscription to  %v ok\n", topic)
 	return
 }
 
