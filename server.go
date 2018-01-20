@@ -2,13 +2,11 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 
 	"github.com/dual75/gosonoff/somqtt"
-
-	"github.com/go-yaml/yaml"
+	"github.com/gorilla/mux"
 
 	"github.com/dual75/gosonoff/sohttp"
 	"github.com/dual75/gosonoff/sows"
@@ -18,16 +16,17 @@ var mqttService *somqtt.MqttService
 
 var wsService *sows.WsService
 
-func checkErr(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 func runHttpServer(config sohttp.SonoffHttp, ch chan int) {
+	r := mux.NewRouter()
+	r.HandleFunc("/api/ws", (*wsService).ServeHTTP)
+	server := sohttp.HTTPServer{config.Addr, config.Port, mqttService}
+	r.HandleFunc("/switch/{deviceid}/{status}", server.ServeSwitch)
+	r.HandleFunc("/switch/{deviceid}/action", server.ServeMessage)
+	r.HandleFunc("/dispatch/device", server.ServeHTTP)
+	http.Handle("/", r)
+
 	serveraddr := fmt.Sprintf("%v:%d", config.Addr, config.Port)
-	httpServer := sohttp.HTTPServer{config.Addr, config.Port, config.Wsport}
-	err := http.ListenAndServeTLS(serveraddr, "server.cert", "server.key", httpServer)
+	err := http.ListenAndServeTLS(serveraddr, "server.cert", "server.key", nil)
 	outcome := 0
 	if err != nil {
 		log.Println(err)
@@ -36,28 +35,12 @@ func runHttpServer(config sohttp.SonoffHttp, ch chan int) {
 	ch <- outcome
 }
 
-func runWsServer(config sohttp.SonoffHttp, ch chan int) {
-	serveraddr := fmt.Sprintf("%v:%d", config.Addr, config.Wsport)
-	err := http.ListenAndServeTLS(serveraddr, "server.cert", "server.key", *wsService)
-	outcome := 0
-	if err != nil {
-		log.Println(err)
-		outcome = 1
-	}
-	ch <- outcome
-}
-
-func selectEvents(serverch chan int, wschan chan int, mqttch chan *somqtt.MqttIncomingMessage) (err error) {
+func selectEvents(serverch chan int, mqttch chan *somqtt.MqttIncomingMessage) (err error) {
 	for {
 		select {
 		case outcome := <-serverch:
 			if outcome == 1 {
 				err = fmt.Errorf("Error, outcome %v from runServer", outcome)
-			}
-			break
-		case outcome := <-wschan:
-			if outcome == 1 {
-				err = fmt.Errorf("Error, outcome %v from wsService", outcome)
 			}
 			break
 		case message := <-mqttch:
@@ -79,32 +62,4 @@ func selectEvents(serverch chan int, wschan chan int, mqttch chan *somqtt.MqttIn
 		}
 	}
 	return
-}
-
-type SonoffConfig struct {
-	Server sohttp.SonoffHttp
-	Mqtt   somqtt.SonoffMqtt
-}
-
-func main() {
-	data, err := ioutil.ReadFile("config.yml")
-	checkErr(err)
-
-	config := SonoffConfig{}
-	err = yaml.Unmarshal(data, &config)
-	checkErr(err)
-
-	mqttService, err = somqtt.NewMqttService(config.Mqtt)
-	checkErr(err)
-
-	wsService = sows.NewWsService(mqttService)
-
-	serverChan := make(chan int)
-	go runHttpServer(config.Server, serverChan)
-
-	wsChan := make(chan int)
-	go runWsServer(config.Server, wsChan)
-
-	err = selectEvents(serverChan, wsChan, (*mqttService).IncomingMessages)
-	checkErr(err)
 }

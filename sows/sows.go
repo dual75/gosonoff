@@ -24,6 +24,38 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type WsReply struct {
+	Apikey   string                  `json:"apikey"`
+	Error    int                     `json:"error"`
+	Deviceid string                  `json:"deviceid"`
+	Date     time.Time               `json:"date,omitempty"`
+	Params   *map[string]interface{} `json:"params,omitempty"`
+}
+
+type WsRequest struct {
+	Apikey   string                  `json:"apikey"`
+	Deviceid string                  `json:"deviceid"`
+	Action   string                  `json:"action"`
+	Params   *map[string]interface{} `json:"params,omitempty"`
+}
+
+func NewWsReply(deviceid string) *WsReply {
+	return &WsReply{
+		Apikey:   sonoff.ApiKey,
+		Error:    0,
+		Deviceid: deviceid,
+		Date:     time.Now(),
+	}
+}
+
+func NewWsRequest(deviceid string, action string) *WsRequest {
+	return &WsRequest{
+		Apikey:   sonoff.ApiKey,
+		Deviceid: deviceid,
+		Action:   action,
+	}
+}
+
 type WsService struct {
 	connections map[string]*websocket.Conn
 	mqttservice *somqtt.MqttService
@@ -65,76 +97,63 @@ func (ws WsService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ws.CleanClose(connection)
-
 	for {
-		var req interface{}
+		var req WsRequest
 		err := connection.ReadJSON(&req)
 		if err != nil {
-			log.Println("read:", err)
+			log.Printf("read: %v\n", err)
 			break
 		}
-		mapRequest := req.(map[string]interface{})
-		response, err := ws.dispatchRequest(&mapRequest, connection)
+		response, err := ws.dispatchRequest(&req, connection)
 		if err != nil {
-			log.Println("dispatch:", err)
+			log.Printf("dispatch: %v\n", err)
 			continue
 		}
-		w.Header().Set("Content-Type", sonoff.ContentType)
-		err = connection.WriteJSON(response)
-		if err != nil {
-			log.Println("write:", err)
-			break
+		if response != nil {
+			err = connection.WriteJSON(response)
+			if err != nil {
+				log.Printf("write: %v\n", err)
+				break
+			}
 		}
 	}
 }
 
-func (ws *WsService) dispatchRequest(req *map[string]interface{}, conn *websocket.Conn) (*map[string]interface{}, error) {
-	deviceid, action := (*req)["deviceid"].(string), (*req)["action"].(string)
-
-	result := make(map[string]interface{})
-	result["deviceid"] = deviceid
-	result["error"] = WsReplyOk
-	result["apiKey"] = sonoff.ApiKey
-
+func (ws *WsService) dispatchRequest(req *WsRequest, conn *websocket.Conn) (*WsReply, error) {
+	result := NewWsReply((*req).Deviceid)
 	marshaled, err := json.Marshal(req)
 	if err != nil {
 		log.Printf("Error in hook marshaling %v", err)
 	}
 
-	log.Printf("ws action: %s, %v", action, string(marshaled[:]))
-	switch action {
+	go (*ws).mqttservice.PublishToEventTopic((*req).Deviceid, marshaled)
+	log.Printf("ws action: %s, %v", (*req).Action, string(marshaled[:]))
+
+	switch (*req).Action {
 	case "date":
-		result["date"] = time.Now()
 	case "update":
-		go (*ws).mqttservice.Publish(deviceid, marshaled)
 	case "register":
 		ws.mux.Lock()
 		defer ws.mux.Unlock()
-		_, ok := ws.connections[deviceid]
+		_, ok := ws.connections[(*req).Deviceid]
 		if !ok {
-			ws.connections[deviceid] = conn
+			ws.connections[(*req).Deviceid] = conn
 		}
-		go (*ws).mqttservice.Subscribe(deviceid)
-		go (*ws).mqttservice.Publish(deviceid, marshaled)
+		go (*ws).mqttservice.Subscribe((*req).Deviceid)
 	case "query":
-		result["params"] = make(map[string]interface{})
+		(*result).Params = &map[string]interface{}{}
 	default:
-		result["error"] = WsReplyKo
+		result = nil
 	}
-	marshaled, err = json.Marshal(result)
-	if err == nil {
-		log.Printf("sending reply to device %v: %v", deviceid, string(marshaled[:]))
-	}
-	return &result, err
+	return result, err
 }
 
 func (ws *WsService) WriteTo(deviceId string, data interface{}) (err error) {
 	ws.mux.Lock()
 	defer ws.mux.Unlock()
-
 	connection, ok := ws.connections[deviceId]
 	if ok == false {
-		err = fmt.Errorf("Unknown device id: %v", deviceId)
+		err = fmt.Errorf("unknown device id: %v", deviceId)
 	}
 	if err == nil {
 		err = connection.WriteJSON(data)
@@ -143,17 +162,14 @@ func (ws *WsService) WriteTo(deviceId string, data interface{}) (err error) {
 }
 
 func (ws *WsService) Switch(deviceId string, flag string) (err error) {
-	json_ := map[string]interface{}{
-		"action": "update",
-		"value": map[string]string{
+	request := &WsRequest{
+		Apikey:   sonoff.ApiKey,
+		Action:   "update",
+		Deviceid: deviceId,
+		Params: &map[string]interface{}{
 			"switch": flag,
 		},
-		"target": deviceId,
 	}
-	marshaled, err := json.Marshal(json_)
-	if err == nil {
-		log.Printf("sending switch command, %v", string(marshaled))
-	}
-	err = ws.WriteTo(deviceId, &json_)
+	err = ws.WriteTo(deviceId, request)
 	return
 }
