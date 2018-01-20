@@ -2,7 +2,6 @@ package sohttp
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -12,6 +11,11 @@ import (
 	"github.com/dual75/gosonoff/sonoff"
 	"github.com/dual75/gosonoff/sows"
 	"github.com/gorilla/mux"
+)
+
+const (
+	MSGOk    = "OK\n"
+	MSGError = "ERROR\n"
 )
 
 type WebSocketConfig struct {
@@ -38,6 +42,7 @@ func (server HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 	w.Header().Set("Content-Type", sonoff.ContentType)
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(wsConfig)
 }
 
@@ -59,16 +64,19 @@ func (server HTTPServer) ServeSwitch(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			go (*server.MqttService).PublishToActionTopic(deviceid, encoded)
 			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(MSGOk))
 		} else {
-			fmt.Println(err)
+			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(MSGError))
 		}
 	default:
 		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(MSGError))
 	}
 }
 
-func (server HTTPServer) ServeMessage(w http.ResponseWriter, r *http.Request) {
+func (server HTTPServer) ServeAction(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	deviceid := vars["deviceid"]
 
@@ -76,8 +84,10 @@ func (server HTTPServer) ServeMessage(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		go (*server.MqttService).PublishToActionTopic(deviceid, bytes)
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(MSGOk))
 	} else {
-		fmt.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
+		w.WriteHeader(http.StatusBadGateway)
+		w.Write([]byte(MSGError))
 	}
 }

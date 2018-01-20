@@ -18,12 +18,6 @@ const (
 	WsReplyKo = 1
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 type WsReply struct {
 	Apikey   string                  `json:"apikey"`
 	Error    int                     `json:"error"`
@@ -90,6 +84,12 @@ func (ws *WsService) CleanClose(conn *websocket.Conn) {
 	(*ws).mux.Unlock()
 }
 
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
 func (ws WsService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	connection, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -139,7 +139,7 @@ func (ws *WsService) dispatchRequest(req *WsRequest, conn *websocket.Conn) (*WsR
 		if !ok {
 			ws.connections[(*req).Deviceid] = conn
 		}
-		go (*ws).mqttservice.Subscribe((*req).Deviceid)
+		go (*ws).mqttservice.SubscribeAll((*req).Deviceid)
 	case "query":
 		(*result).Params = &map[string]interface{}{}
 	default:

@@ -1,10 +1,10 @@
 package somqtt
 
 type SonoffMqtt struct {
-	Enabled      bool
-	Publishtopic string
-	Actiontopic  string
-	Switchtopic  string
-	Url          string
-	Qos          byte
+	Enabled     bool
+	Eventtopic  string
+	Actiontopic string
+	Switchtopic string
+	Url         string
+	Qos         byte
 }

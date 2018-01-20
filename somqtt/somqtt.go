@@ -36,7 +36,7 @@ func checkError(token mqtt.Token) (err error) {
 
 func (s *MqttService) PublishToEventTopic(deviceid string, message interface{}) {
 	if (*s).Client.IsConnected() {
-		topic := fmt.Sprintf((*s).Config.Publishtopic, deviceid)
+		topic := fmt.Sprintf((*s).Config.Eventtopic, deviceid)
 		checkError((*s).Client.Publish(topic, (*s).Config.Qos, false, message))
 	} else {
 		log.Printf("mqtt client not connected on trying to publish for device %v", deviceid)
@@ -57,7 +57,7 @@ func (s *MqttService) PublishToActionTopic(deviceid string, message interface{})
 	}
 }
 
-func (s *MqttService) Subscribe(deviceid string) (err error) {
+func (s *MqttService) SubscribeAll(deviceid string) (err error) {
 	if (*s).Client.IsConnected() {
 		log.Printf("now subscribing to topics for %v\n", deviceid)
 		handler := &SonoffMessageHandler{deviceid, s}
@@ -68,7 +68,7 @@ func (s *MqttService) Subscribe(deviceid string) (err error) {
 			err = (*s).subscribeTopic(topic, handler.SwitchHandler)
 		}
 		if err != nil {
-			s.Unsubscribe(deviceid)
+			s.UnsubscribeAll(deviceid)
 		}
 	} else {
 		log.Printf("mqtt client not connected, while trying to subscribe for device %v", deviceid)
@@ -84,7 +84,7 @@ func (s *MqttService) subscribeTopic(topic string, handler mqtt.MessageHandler) 
 	return
 }
 
-func (s *MqttService) Unsubscribe(deviceid string) (err error) {
+func (s *MqttService) UnsubscribeAll(deviceid string) (err error) {
 	log.Printf("now unsubscribing from all topics %v\n", deviceid)
 	for _, topic := range []string{(*s).Config.Actiontopic, (*s).Config.Switchtopic} {
 		complete := fmt.Sprintf(topic, deviceid)

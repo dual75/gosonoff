@@ -1,12 +1,14 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 
 	"github.com/dual75/gosonoff/sohttp"
 	"github.com/dual75/gosonoff/somqtt"
-	"github.com/dual75/gosonoff/sows"
+	"github.com/dual75/gosonoff/sonoff"
 	"github.com/go-yaml/yaml"
 )
 
@@ -15,28 +17,41 @@ type SonoffConfig struct {
 	Mqtt   somqtt.SonoffMqtt
 }
 
+var sonoffConfig SonoffConfig = SonoffConfig{}
+
 func checkErr(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
+func parseArgs() (*string, *string, *string, *string, *string, *string) {
+	config := flag.String("config", sonoff.ConfigFile, "configuration file name")
+	command := flag.String("command", sonoff.CommandDefault, "command to execute [serve, configure]")
+	certfile := flag.String("cert", sonoff.CertFile, "server certificate file")
+	keyfile := flag.String("key", sonoff.KeyFile, "server certificate key file")
+	ssid := flag.String("ssid", "*", "network ssid")
+	password := flag.String("password", "*", "network password")
+	flag.Parse()
+	return config, command, certfile, keyfile, ssid, password
+}
+
 func main() {
-	data, err := ioutil.ReadFile("config.yml")
+	config, command, certfile, keyfile, ssid, password := parseArgs()
+	data, err := ioutil.ReadFile(*config)
 	checkErr(err)
 
-	config := SonoffConfig{}
-	err = yaml.Unmarshal(data, &config)
+	err = yaml.Unmarshal(data, &sonoffConfig)
 	checkErr(err)
 
-	mqttService, err = somqtt.NewMqttService(config.Mqtt)
-	checkErr(err)
-
-	wsService = sows.NewWsService(mqttService)
-
-	serverChan := make(chan int)
-	go runHttpServer(config.Server, serverChan)
-
-	err = selectEvents(serverChan, (*mqttService).IncomingMessages)
+	vCommand := *command
+	switch vCommand {
+	case sonoff.CommandDefault:
+		err = serve(certfile, keyfile)
+	case "configure":
+		err = configure(ssid, password)
+	default:
+		err = fmt.Errorf("Unknown command: %v", command)
+	}
 	checkErr(err)
 }
