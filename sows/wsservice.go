@@ -88,6 +88,7 @@ func (ws WsService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (ws *WsService) dispatchRequest(req *WsMessage, conn *websocket.Conn) (*WsMessage, error) {
 	result := NewWsMessage((*req).Deviceid)
+	(*result).Error = 0
 	marshaled, err := json.Marshal(req)
 	if err != nil {
 		log.Printf("Error in hook marshaling %v", err)
