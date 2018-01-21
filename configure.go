@@ -4,19 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/dual75/gosonoff/sonoff"
 )
 
-func configure(ssid *string, password *string) (err error) {
+func configure(url string, ssid *string, password *string) (err error) {
 	if *ssid == "*" {
-		log.Fatal("ssid is mandatory")
+		err = fmt.Errorf("ssid is mandatory")
+		return
 	}
 	if *password == "*" {
-		log.Fatal("password is mandatory")
+		err = fmt.Errorf("password is mandatory")
+		return
 	}
 
 	req := map[string]interface{}{
@@ -27,17 +28,16 @@ func configure(ssid *string, password *string) (err error) {
 		"port":       sonoffConfig.Server.Port,
 	}
 	body, err := json.Marshal(req)
-	checkErr(err)
-
-	sbody := string(body[:])
-	fmt.Println("request Body:", sbody)
-	resp, err := http.Post(sonoff.ConfigurationUrl, sonoff.ContentType, strings.NewReader(sbody))
-	checkErr(err)
-	defer resp.Body.Close()
-
-	body, err = ioutil.ReadAll(resp.Body)
-	checkErr(err)
-
+	var resp *http.Response
+	if err == nil {
+		sbody := string(body[:])
+		fmt.Println("request Body:", sbody)
+		resp, err = http.Post(url, sonoff.ContentType, strings.NewReader(sbody))
+	}
+	if err != nil {
+		defer resp.Body.Close()
+		body, err = ioutil.ReadAll(resp.Body)
+	}
 	fmt.Println("response Body:", string(body[:]))
 	return
 }

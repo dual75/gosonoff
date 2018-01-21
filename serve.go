@@ -46,6 +46,7 @@ func selectEvents(serverch chan int, mqttch chan *somqtt.MqttIncomingMessage) (e
 		case message := <-mqttch:
 			switch message.Code {
 			case somqtt.CodeAction:
+				log.Println("forwarding ", (*message).Message)
 				err = wsService.WriteTo((*message).Deviceid, (*message).Message)
 			case somqtt.CodeSwitch:
 				flag := (*message).Message.(*string)

@@ -8,4 +8,5 @@ mqtt:
   eventtopic: 'sonoff/%v/event'
   actiontopic: 'sonoff/%v/action'
   switchtopic: 'sonoff/%v/switch'
+  statustopic: 'sonoff/%v/status'
   qos: 1

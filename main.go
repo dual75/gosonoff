@@ -49,7 +49,7 @@ func main() {
 	case sonoff.CommandDefault:
 		err = serve(certfile, keyfile)
 	case "configure":
-		err = configure(ssid, password)
+		err = configure(sonoff.ConfigurationUrl, ssid, password)
 	default:
 		err = fmt.Errorf("Unknown command: %v", command)
 	}
