@@ -36,11 +36,11 @@ func (ws *WsService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	device, err := RegisterConnectedDevice(conn, (*ws).mqttservice)
+	device, err := RegisterConnectedDevice(conn, ws.mqttservice)
 	if err == nil {
 		defer ws.removeConnectedDevice(device)
 
-		(*ws).devices[device.Deviceid] = device
+		ws.devices[device.Deviceid] = device
 		device.ServeForever()
 	} else {
 		defer conn.Close()
@@ -48,14 +48,14 @@ func (ws *WsService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *WsService) removeConnectedDevice(connectedDevice *ConnectedDevice) {
-	(*ws).dataMux.Lock()
-	defer (*ws).dataMux.Unlock()
+	ws.dataMux.Lock()
+	defer ws.dataMux.Unlock()
 
 	err := connectedDevice.CloseConnection()
 	if err != nil {
 		log.Println("error in connecteddevice.CloseConnection():", err)
 	}
-	delete((*ws).devices, (*connectedDevice).Deviceid)
+	delete(ws.devices, (*connectedDevice).Deviceid)
 }
 
 func (ws *WsService) WriteTo(deviceId string, data interface{}, callback ReplyCallback) (err error) {
@@ -77,7 +77,7 @@ func (ws *WsService) Switch(deviceId string, flag string) (err error) {
 		},
 	}
 	successCallback := func(device *ConnectedDevice, message *WsMessage) {
-		go (*ws).mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
+		go ws.mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
 	}
 	err = ws.WriteTo(deviceId, request, successCallback)
 	return
@@ -93,14 +93,14 @@ func (ws *WsService) Status(deviceId string) (err error) {
 	successCallback := func(device *ConnectedDevice, message *WsMessage) {
 		params := (*message).Params.(map[string]interface{})
 		(*device).Status = params["switch"].(string)
-		go (*ws).mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
+		go ws.mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
 	}
 	err = ws.WriteTo(deviceId, request, successCallback)
 	return
 }
 
 func (ws *WsService) DiscardDevice(deviceId string) {
-	if device, ok := (*ws).devices[deviceId]; ok {
+	if device, ok := ws.devices[deviceId]; ok {
 		ws.removeConnectedDevice(device)
 	}
 }

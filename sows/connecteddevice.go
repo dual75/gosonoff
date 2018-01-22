@@ -56,7 +56,7 @@ func RegisterConnectedDevice(conn *websocket.Conn, mqttservice *somqtt.MqttServi
 
 func (d *ConnectedDevice) ServeForever() (err error) {
 	for {
-		req, err := recvMessage((*d).conn, (*d).mqttservice)
+		req, err := recvMessage(d.conn, d.mqttservice)
 		if err != nil {
 			log.Println("error in recvMessage:", err)
 			break
@@ -69,7 +69,7 @@ func (d *ConnectedDevice) ServeForever() (err error) {
 				continue
 			}
 			if response != nil {
-				err = (*d).conn.WriteJSON(response)
+				err = d.conn.WriteJSON(response)
 				if err != nil {
 					log.Println("serveForever, error in WriteJSON:", err)
 					break
@@ -77,10 +77,10 @@ func (d *ConnectedDevice) ServeForever() (err error) {
 			}
 		} else {
 			// if a callback func has been set then execute it
-			if (*d).replyCallback != nil {
-				(*d).replyCallback(d, req)
+			if d.replyCallback != nil {
+				d.replyCallback(d, req)
 				// reset replyCallback
-				(*d).replyCallback = nil
+				d.replyCallback = nil
 			}
 		}
 	}
@@ -98,24 +98,24 @@ func recvMessage(conn *websocket.Conn, mqttservice *somqtt.MqttService) (result 
 }
 
 func (d *ConnectedDevice) handleAction(req *WsMessage) (*WsMessage, error) {
-	result := NewWsMessage((*req).Deviceid)
+	result := NewWsMessage(req.Deviceid)
 	(*result.Error) = 0
 
 	marshaled, err := json.Marshal(req)
 	if err == nil {
-		go (*d).mqttservice.PublishToEventTopic((*req).Deviceid, marshaled)
-		switch (*req).Action {
+		go d.mqttservice.PublishToEventTopic((*req).Deviceid, marshaled)
+		switch req.Action {
 		case "date":
 			(*result).Date = time.Now()
 		case "update":
-			params := (*req).Params.(map[string]interface{})
+			params := req.Params.(map[string]interface{})
 			status, ok := params["switch"]
 			if ok {
-				(*d).Status = status.(string)
-				go (*d).mqttservice.PublishToStatusTopic((*d).Deviceid, status.(string))
+				d.Status = status.(string)
+				go d.mqttservice.PublishToStatusTopic(d.Deviceid, status.(string))
 			}
 		case "query":
-			(*result).Params = make(map[string]interface{})
+			result.Params = make(map[string]interface{})
 		}
 	}
 	return result, err
@@ -137,14 +137,14 @@ func getDeviceType(deviceid string) (result string) {
 }
 
 func (d *ConnectedDevice) Write(data interface{}, callback ReplyCallback) (err error) {
-	err = (*d).conn.WriteJSON(data)
+	err = d.conn.WriteJSON(data)
 	if err == nil {
-		(*d).replyCallback = callback
+		d.replyCallback = callback
 	}
 	return
 }
 
 func (d *ConnectedDevice) CloseConnection() (err error) {
-	err = (*d).conn.Close()
+	err = d.conn.Close()
 	return
 }

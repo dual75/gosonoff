@@ -52,7 +52,6 @@ func selectEvents(serverch <-chan int, mqttch <-chan *somqtt.MqttIncomingMessage
 				flag := (*message).Message.(*string)
 				err = wsService.Switch((*message).Deviceid, *flag)
 			}
-
 			if err != nil {
 				log.Println(err)
 				wsService.DiscardDevice((*message).Deviceid)
