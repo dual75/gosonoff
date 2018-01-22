@@ -14,7 +14,7 @@ import (
 // You can godoc types
 
 // ReplyCallback is a method to be called upon action request completion
-type ReplyCallback func(*ConnectedDevice, *WsMessage)
+type ReplyCallback func(*ConnectedDevice, *WsMessage) (err error)
 
 // ConnectedDevice is a structure incapsulating device informations and actions
 type ConnectedDevice struct {
@@ -142,8 +142,12 @@ func getDeviceType(deviceid string) (result string) {
 
 func (d *ConnectedDevice) Write(data interface{}, callback ReplyCallback) (err error) {
 	err = d.conn.WriteJSON(data)
+	var req *WsMessage
 	if err == nil {
-		d.replyCallback = callback
+		req, err := recvMessage(d.conn, d.mqttservice)
+	}
+	if err == nil {
+		err = callback(d, req)
 	}
 	return
 }

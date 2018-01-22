@@ -89,8 +89,9 @@ func (ws *WsService) Switch(deviceId string, flag string) (err error) {
 			"switch": flag,
 		},
 	}
-	successCallback := func(device *ConnectedDevice, message *WsMessage) {
+	successCallback := func(device *ConnectedDevice, message *WsMessage) (err error) {
 		go ws.mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
+		return
 	}
 	err = ws.WriteTo(deviceId, request, successCallback)
 	return
@@ -104,10 +105,11 @@ func (ws *WsService) Status(deviceId string) (err error) {
 		Deviceid: deviceId,
 		Params:   []string{"switch"},
 	}
-	successCallback := func(device *ConnectedDevice, message *WsMessage) {
+	successCallback := func(device *ConnectedDevice, message *WsMessage) (err error) {
 		params := (*message).Params.(map[string]interface{})
 		(*device).Status = params["switch"].(string)
 		go ws.mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
+		return
 	}
 	err = ws.WriteTo(deviceId, request, successCallback)
 	return
