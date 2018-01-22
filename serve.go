@@ -35,7 +35,7 @@ func runHttpServer(config sohttp.SonoffHttp, certfile *string, keyfile *string, 
 	ch <- outcome
 }
 
-func selectEvents(serverch chan int, mqttch chan *somqtt.MqttIncomingMessage) (err error) {
+func selectEvents(serverch <-chan int, mqttch <-chan *somqtt.MqttIncomingMessage) (err error) {
 	for {
 		select {
 		case outcome := <-serverch:
@@ -47,7 +47,7 @@ func selectEvents(serverch chan int, mqttch chan *somqtt.MqttIncomingMessage) (e
 			switch message.Code {
 			case somqtt.CodeAction:
 				log.Println("forwarding ", (*message).Message)
-				err = wsService.WriteTo((*message).Deviceid, (*message).Message)
+				err = wsService.WriteTo((*message).Deviceid, (*message).Message, nil)
 			case somqtt.CodeSwitch:
 				flag := (*message).Message.(*string)
 				err = wsService.Switch((*message).Deviceid, *flag)
@@ -55,7 +55,7 @@ func selectEvents(serverch chan int, mqttch chan *somqtt.MqttIncomingMessage) (e
 
 			if err != nil {
 				log.Println(err)
-				wsService.RemoveDeviceConnection((*message).Deviceid)
+				wsService.DiscardDevice((*message).Deviceid)
 				mqttService.UnsubscribeAll((*message).Deviceid)
 			} else {
 				log.Printf("message code %v, processed without errors\n", message.Code)
