@@ -10,6 +10,7 @@ import (
 	"github.com/dual75/gosonoff/sonoff"
 )
 
+// configure makes a POST to devices configuration URL to set up HTTP as WS endpoints
 func configure(url string, ssid *string, password *string) (err error) {
 	if *ssid == "*" {
 		err = fmt.Errorf("ssid is mandatory")

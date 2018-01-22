@@ -1,3 +1,5 @@
+// sows
+
 package sows
 
 import (
@@ -10,6 +12,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// You can godoc types
+
+// WsService is a service object which acts as a facade for WebSocket communications
 type WsService struct {
 	devices     map[string]*ConnectedDevice
 	mqttservice *somqtt.MqttService
@@ -17,6 +22,9 @@ type WsService struct {
 	dataMux     sync.Mutex
 }
 
+// You can godoc functions
+
+// NewWsService creates a new WsService
 func NewWsService(mqttservice *somqtt.MqttService) (result *WsService) {
 	result = &WsService{
 		mqttservice: mqttservice,
@@ -29,6 +37,8 @@ func NewWsService(mqttservice *somqtt.MqttService) (result *WsService) {
 	return
 }
 
+// ServeHTTP is a handler function for http server
+// Connection is upgraded to websocket and a new ConnectedDevice is created
 func (ws *WsService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := ws.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -47,6 +57,7 @@ func (ws *WsService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// removeConnectedDevice removes an existing ConnectedDevice an request for connection to be closed
 func (ws *WsService) removeConnectedDevice(connectedDevice *ConnectedDevice) {
 	ws.dataMux.Lock()
 	defer ws.dataMux.Unlock()
@@ -58,6 +69,7 @@ func (ws *WsService) removeConnectedDevice(connectedDevice *ConnectedDevice) {
 	delete(ws.devices, (*connectedDevice).Deviceid)
 }
 
+// WriteTo writes an interface{} argument (see json.Marshal documentation) to the ConnectedDevice via websocket
 func (ws *WsService) WriteTo(deviceId string, data interface{}, callback ReplyCallback) (err error) {
 	if device, ok := ws.devices[deviceId]; ok {
 		err = device.Write(data, callback)
@@ -67,6 +79,7 @@ func (ws *WsService) WriteTo(deviceId string, data interface{}, callback ReplyCa
 	return
 }
 
+// Switch crafts a switch update request and send it to the ConnectedDevice
 func (ws *WsService) Switch(deviceId string, flag string) (err error) {
 	request := &WsMessage{
 		Apikey:   sonoff.ApiKey,
@@ -83,6 +96,7 @@ func (ws *WsService) Switch(deviceId string, flag string) (err error) {
 	return
 }
 
+// Status crafts a switch status request and send it to the ConnectedDevice
 func (ws *WsService) Status(deviceId string) (err error) {
 	request := &WsMessage{
 		Apikey:   sonoff.ApiKey,
@@ -99,6 +113,7 @@ func (ws *WsService) Status(deviceId string) (err error) {
 	return
 }
 
+// DiscardDevice close and discards a ConnectioDevice identified by deviceid
 func (ws *WsService) DiscardDevice(deviceId string) {
 	if device, ok := ws.devices[deviceId]; ok {
 		ws.removeConnectedDevice(device)

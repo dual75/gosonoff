@@ -11,8 +11,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// You can godoc types
+
+// ReplyCallback is a method to be called upon action request completion
 type ReplyCallback func(*ConnectedDevice, *WsMessage)
 
+// ConnectedDevice is a structure incapsulating device informations and actions
 type ConnectedDevice struct {
 	Deviceid   string
 	Devicetype string
@@ -25,14 +29,15 @@ type ConnectedDevice struct {
 	replyCallback ReplyCallback
 }
 
+// You can godoc methods
+
 func RegisterConnectedDevice(conn *websocket.Conn, mqttservice *somqtt.MqttService) (result *ConnectedDevice, err error) {
 	req, err := recvMessage(conn, mqttservice)
-	var vreq WsMessage
 	if err == nil {
 		if req.Action == "register" {
 			result = &ConnectedDevice{
 				Deviceid:    req.Deviceid,
-				Devicetype:  getDeviceType(vreq.Deviceid),
+				Devicetype:  getDeviceType(req.Deviceid),
 				Romversion:  req.Romversion,
 				Model:       req.Model,
 				Status:      "unknown",
@@ -42,7 +47,7 @@ func RegisterConnectedDevice(conn *websocket.Conn, mqttservice *somqtt.MqttServi
 			go mqttservice.PublishToStatusTopic(req.Deviceid, "unknown")
 			go mqttservice.SubscribeAll(req.Deviceid)
 		} else {
-			err = fmt.Errorf("expected 'register' action, got '%v'", req.Action)
+			err = fmt.Errorf("RegisterConnectedDevice :expected 'register' action, got '%v'", req.Action)
 		}
 	}
 	if err == nil {
@@ -57,20 +62,20 @@ func (d *ConnectedDevice) ServeForever() (err error) {
 	for {
 		req, err := recvMessage(d.conn, d.mqttservice)
 		if err != nil {
-			log.Println("error in recvMessage:", err)
+			log.Println("ServeForever, error in recvMessage:", err)
 			break
 		}
 		if req.Action != "" {
 			// Current message is an action from device
 			response, err := d.handleAction(req)
 			if err != nil {
-				log.Println("error in handleAction:", err)
+				log.Println("ServeForever, error in handleAction:", err)
 				continue
 			}
 			if response != nil {
 				err = d.conn.WriteJSON(response)
 				if err != nil {
-					log.Println("serveForever, error in WriteJSON:", err)
+					log.Println("ServeForever, error in WriteJSON:", err)
 					break
 				}
 			}
@@ -88,10 +93,10 @@ func (d *ConnectedDevice) ServeForever() (err error) {
 
 func recvMessage(conn *websocket.Conn, mqttservice *somqtt.MqttService) (result *WsMessage, err error) {
 	err = conn.ReadJSON(result)
-	if err != nil {
-		log.Printf("recvMessage error: %v", err)
-	} else {
+	if err == nil {
 		go mqttservice.PublishToEventTopic(result.Deviceid, result)
+	} else {
+		log.Println("recvMessage error:", err)
 	}
 	return
 }

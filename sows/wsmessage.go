@@ -1,3 +1,5 @@
+// sows package hold all the type and functions involved in websocket communication between server and devices
+
 package sows
 
 import (
@@ -6,6 +8,9 @@ import (
 	"github.com/dual75/gosonoff/sonoff"
 )
 
+// You can godoc types
+
+// WsMessage represents a JSON message for server <-> device communication
 type WsMessage struct {
 	Apikey     string      `json:"apikey"`
 	Deviceid   string      `json:"deviceid"`
@@ -17,6 +22,9 @@ type WsMessage struct {
 	Params     interface{} `json:"params,omitempty"`
 }
 
+// You can godoc functions
+
+// NewWsMessage creates a new WsMessage with given deviceid and default api key
 func NewWsMessage(deviceid string) *WsMessage {
 	return &WsMessage{
 		Apikey:   sonoff.ApiKey,

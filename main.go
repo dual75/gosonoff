@@ -1,3 +1,5 @@
+// main is the entry point for gosonoff
+
 package main
 
 import (
@@ -12,6 +14,7 @@ import (
 	"github.com/go-yaml/yaml"
 )
 
+// SonoffConfig holds configuration from yaml file
 type SonoffConfig struct {
 	Server sohttp.SonoffHttp
 	Mqtt   somqtt.SonoffMqtt
@@ -19,12 +22,14 @@ type SonoffConfig struct {
 
 var sonoffConfig SonoffConfig = SonoffConfig{}
 
+// checkErr check for last error and exit with log.Fatal
 func checkErr(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
+// parseArgs configure parser and parse command line arguments
 func parseArgs() (*string, *string, *string, *string, *string, *string) {
 	config := flag.String("config", sonoff.ConfigFile, "configuration file name")
 	command := flag.String("command", sonoff.CommandDefault, "command to execute [serve, configure]")
