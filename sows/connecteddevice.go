@@ -91,21 +91,21 @@ func recvMessage(conn *websocket.Conn, mqttservice *somqtt.MqttService) (result 
 	if err != nil {
 		log.Printf("recvMessage error: %v", err)
 	} else {
-		go mqttservice.PublishToEventTopic((*result).Deviceid, result)
+		go mqttservice.PublishToEventTopic(result.Deviceid, result)
 	}
 	return
 }
 
 func (d *ConnectedDevice) handleAction(req *WsMessage) (*WsMessage, error) {
 	result := NewWsMessage(req.Deviceid)
-	(*result.Error) = 0
+	(*result.Error) = WsReplyOk
 
 	marshaled, err := json.Marshal(req)
 	if err == nil {
 		go d.mqttservice.PublishToEventTopic((*req).Deviceid, marshaled)
 		switch req.Action {
 		case "date":
-			(*result).Date = time.Now()
+			result.Date = time.Now()
 		case "update":
 			params := req.Params.(map[string]interface{})
 			status, ok := params["switch"]
