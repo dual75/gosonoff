@@ -19,6 +19,13 @@ type HTTPServer struct {
 	MqttService *somqtt.MqttService
 }
 
+type WebSocketConfig struct {
+	Error  int    `json:"error"`
+	Reason string `json:"reason"`
+	IP     string `json:"IP"`
+	Port   int    `json:"port"`
+}
+
 // ServeHTTP Single handle func
 func (server HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wsConfig := WebSocketConfig{0, "ok", server.Ip, server.Port}

@@ -9,11 +9,3 @@ type SonoffMqtt struct {
 	Url         string
 	Qos         byte
 }
-
-type MqttMessageCode int
-
-type MqttIncomingMessage struct {
-	Code     MqttMessageCode
-	Deviceid string
-	Message  interface{}
-}
