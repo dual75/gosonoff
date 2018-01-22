@@ -29,25 +29,24 @@ func RegisterConnectedDevice(conn *websocket.Conn, mqttservice *somqtt.MqttServi
 	req, err := recvMessage(conn, mqttservice)
 	var vreq WsMessage
 	if err == nil {
-		vreq = *req
-		if vreq.Action == "register" {
+		if req.Action == "register" {
 			result = &ConnectedDevice{
-				Deviceid:    vreq.Deviceid,
+				Deviceid:    req.Deviceid,
 				Devicetype:  getDeviceType(vreq.Deviceid),
-				Romversion:  vreq.Romversion,
-				Model:       vreq.Model,
+				Romversion:  req.Romversion,
+				Model:       req.Model,
 				Status:      "unknown",
 				conn:        conn,
 				mqttservice: mqttservice,
 			}
-			go mqttservice.PublishToStatusTopic(vreq.Deviceid, "unknown")
-			go mqttservice.SubscribeAll(vreq.Deviceid)
+			go mqttservice.PublishToStatusTopic(req.Deviceid, "unknown")
+			go mqttservice.SubscribeAll(req.Deviceid)
 		} else {
-			err = fmt.Errorf("expected 'register' action, got '%v'", vreq.Action)
+			err = fmt.Errorf("expected 'register' action, got '%v'", req.Action)
 		}
 	}
 	if err == nil {
-		response := NewWsMessage(vreq.Deviceid)
+		response := NewWsMessage(req.Deviceid)
 		(*response.Error) = 0
 		err = conn.WriteJSON(response)
 	}
