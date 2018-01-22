@@ -61,6 +61,8 @@ func (ws *WsService) removeConnectedDevice(connectedDevice *ConnectedDevice) {
 func (ws *WsService) WriteTo(deviceId string, data interface{}, callback ReplyCallback) (err error) {
 	if device, ok := ws.devices[deviceId]; ok {
 		err = device.Write(data, callback)
+	} else {
+		log.Println("error in WriteTo, unknown device", deviceId)
 	}
 	return
 }
