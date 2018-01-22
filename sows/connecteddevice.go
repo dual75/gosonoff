@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type ReplyCallback func(*WsMessage)
+type ReplyCallback func(*ConnectedDevice, *WsMessage)
 
 type ConnectedDevice struct {
 	Deviceid   string
@@ -78,7 +78,7 @@ func (d *ConnectedDevice) ServeForever() (err error) {
 		} else {
 			// if a callback func has been set then execute it
 			if (*d).replyCallback != nil {
-				(*d).replyCallback(req)
+				(*d).replyCallback(d, req)
 				// reset replyCallback
 				(*d).replyCallback = nil
 			}

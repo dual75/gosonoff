@@ -74,15 +74,8 @@ func (ws *WsService) Switch(deviceId string, flag string) (err error) {
 			"switch": flag,
 		},
 	}
-	successCallback := func(message *WsMessage) {
-		(*ws).dataMux.Lock()
-		defer (*ws).dataMux.Unlock()
-
-		device, ok := (*ws).devices[deviceId]
-		if ok {
-			device.Status = flag
-			go (*ws).mqttservice.PublishToStatusTopic(deviceId, device.Status)
-		}
+	successCallback := func(device *ConnectedDevice, message *WsMessage) {
+		go (*ws).mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
 	}
 	err = ws.WriteTo(deviceId, request, successCallback)
 	return
@@ -95,16 +88,10 @@ func (ws *WsService) Status(deviceId string) (err error) {
 		Deviceid: deviceId,
 		Params:   []string{"switch"},
 	}
-	successCallback := func(message *WsMessage) {
-		(*ws).dataMux.Lock()
-		defer (*ws).dataMux.Unlock()
-
-		device, ok := (*ws).devices[deviceId]
-		if ok {
-			params := (*message).Params.(map[string]interface{})
-			device.Status = params["switch"].(string)
-			go (*ws).mqttservice.PublishToStatusTopic(deviceId, device.Status)
-		}
+	successCallback := func(device *ConnectedDevice, message *WsMessage) {
+		params := (*message).Params.(map[string]interface{})
+		(*device).Status = params["switch"].(string)
+		go (*ws).mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
 	}
 	err = ws.WriteTo(deviceId, request, successCallback)
 	return
