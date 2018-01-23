@@ -32,7 +32,7 @@ func runHttpServer(certfile *string, keyfile *string, ch chan int) {
 	r.HandleFunc("/dispatch/device", server.ServeDevice).Methods("GET")
 	http.Handle("/", r)
 
-	serveraddr := fmt.Sprintf("%v:%d", config.Config.Server.Addr, sonoff.Config.Server.Port)
+	serveraddr := fmt.Sprintf("%v:%d", sonoff.Config.Server.Addr, sonoff.Config.Server.Port)
 	err := http.ListenAndServeTLS(serveraddr, *certfile, *keyfile, nil)
 	outcome := 0
 	if err != nil {
