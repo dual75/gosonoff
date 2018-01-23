@@ -25,8 +25,8 @@ func configure(url string, ssid *string, password *string) (err error) {
 		"version":    4,
 		"ssid":       ssid,
 		"password":   password,
-		"serverName": sonoffConfig.Server.Addr,
-		"port":       sonoffConfig.Server.Port,
+		"serverName": sonoff.Config.Server.Addr,
+		"port":       sonoff.Config.Server.Port,
 	}
 	body, err := json.Marshal(req)
 	var resp *http.Response

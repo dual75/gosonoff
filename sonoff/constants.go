@@ -6,6 +6,7 @@ const (
 	ConfigFile       = "gosonoff.yml"
 	CertFile         = "server.cert"
 	KeyFile          = "server.key"
-	CommandDefault   = "serve"
+	CommandServe     = "serve"
+	CommandConfigure = "configure"
 	ConfigurationUrl = "http://10.10.7.1/device"
 )

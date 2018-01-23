@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/dual75/gosonoff/sonoff"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
 type MqttService struct {
-	Config           SonoffMqtt
+	Config           sonoff.SonoffMqtt
 	Client           mqtt.Client
 	IncomingMessages chan *MqttIncomingMessage
 }
@@ -97,7 +98,7 @@ func (s *MqttService) unsubscribeTopic(deviceid string, topic string) (err error
 	return
 }
 
-func NewMqttService(config SonoffMqtt) (result *MqttService, err error) {
+func NewMqttService(config sonoff.SonoffMqtt) (result *MqttService, err error) {
 	result = &MqttService{}
 	copt := mqtt.NewClientOptions()
 	copt.AddBroker(config.Url)

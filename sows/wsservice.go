@@ -3,6 +3,7 @@
 package sows
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -120,4 +121,13 @@ func (ws *WsService) DiscardDevice(deviceId string) {
 	if device, ok := ws.devices[deviceId]; ok {
 		ws.removeConnectedDevice(device)
 	}
+}
+
+func (ws *WsService) DeviceById(deviceid string) (device *ConnectedDevice, err error) {
+	if value, ok := ws.devices[deviceid]; !ok {
+		device = value
+	} else {
+		err = fmt.Errorf("Unknown device %v", deviceid)
+	}
+	return
 }

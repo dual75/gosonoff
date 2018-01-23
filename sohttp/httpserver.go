@@ -17,6 +17,7 @@ type HTTPServer struct {
 	Ip          string
 	Port        int
 	MqttService *somqtt.MqttService
+	WsService   *sows.WsService
 }
 
 type WebSocketConfig struct {
@@ -27,7 +28,7 @@ type WebSocketConfig struct {
 }
 
 // ServeHTTP Single handle func
-func (server HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (server *HTTPServer) ServeDevice(w http.ResponseWriter, r *http.Request) {
 	wsConfig := WebSocketConfig{0, "ok", server.Ip, server.Port}
 	log.Printf("request: URI = %v", r.RequestURI)
 	bytes, err := ioutil.ReadAll(r.Body)
@@ -41,7 +42,7 @@ func (server HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(wsConfig)
 }
 
-func (server HTTPServer) ServeSwitch(w http.ResponseWriter, r *http.Request) {
+func (server *HTTPServer) ServeSwitch(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	deviceid, status := vars["deviceid"], vars["status"]
 
@@ -71,9 +72,8 @@ func (server HTTPServer) ServeSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (server HTTPServer) ServeAction(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	deviceid := vars["deviceid"]
+func (server *HTTPServer) ServeAction(w http.ResponseWriter, r *http.Request) {
+	deviceid := mux.Vars(r)["deviceid"]
 
 	bytes, err := ioutil.ReadAll(r.Body)
 	if err == nil {
@@ -84,5 +84,18 @@ func (server HTTPServer) ServeAction(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		w.WriteHeader(http.StatusBadGateway)
 		w.Write([]byte(MSGError))
+	}
+}
+
+func (server *HTTPServer) ServeStatus(w http.ResponseWriter, r *http.Request) {
+	deviceid := mux.Vars(r)["deviceid"]
+
+	device, err := server.WsService.DeviceById(deviceid)
+	if err == nil {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(device)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(err.Error()))
 	}
 }

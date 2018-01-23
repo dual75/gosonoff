@@ -8,19 +8,11 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/dual75/gosonoff/sohttp"
-	"github.com/dual75/gosonoff/somqtt"
 	"github.com/dual75/gosonoff/sonoff"
 	"github.com/go-yaml/yaml"
 )
 
-// SonoffConfig holds configuration from yaml file
-type SonoffConfig struct {
-	Server sohttp.SonoffHttp
-	Mqtt   somqtt.SonoffMqtt
-}
-
-var sonoffConfig SonoffConfig = SonoffConfig{}
+// You can godoc functions
 
 // checkErr check for last error and exit with log.Fatal
 func checkErr(err error) {
@@ -32,7 +24,7 @@ func checkErr(err error) {
 // parseArgs configure parser and parse command line arguments
 func parseArgs() (*string, *string, *string, *string, *string, *string) {
 	config := flag.String("config", sonoff.ConfigFile, "configuration file name")
-	command := flag.String("command", sonoff.CommandDefault, "command to execute [serve, configure]")
+	command := flag.String("command", sonoff.CommandServe, "command to execute [serve, configure]")
 	certfile := flag.String("cert", sonoff.CertFile, "server certificate file")
 	keyfile := flag.String("key", sonoff.KeyFile, "server certificate key file")
 	ssid := flag.String("ssid", "*", "network ssid")
@@ -46,14 +38,13 @@ func main() {
 	data, err := ioutil.ReadFile(*config)
 	checkErr(err)
 
-	err = yaml.Unmarshal(data, &sonoffConfig)
+	err = yaml.Unmarshal(data, &sonoff.Config)
 	checkErr(err)
 
-	vCommand := *command
-	switch vCommand {
-	case sonoff.CommandDefault:
+	switch *command {
+	case sonoff.CommandServe:
 		err = serve(certfile, keyfile)
-	case "configure":
+	case sonoff.CommandConfigure:
 		err = configure(sonoff.ConfigurationUrl, ssid, password)
 	default:
 		err = fmt.Errorf("Unknown command: %v", command)

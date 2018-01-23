@@ -6,26 +6,33 @@ import (
 	"net/http"
 
 	"github.com/dual75/gosonoff/somqtt"
+	"github.com/dual75/gosonoff/sonoff"
 	"github.com/gorilla/mux"
 
 	"github.com/dual75/gosonoff/sohttp"
 	"github.com/dual75/gosonoff/sows"
 )
 
-var mqttService *somqtt.MqttService
+// You can godoc variables
 
-var wsService *sows.WsService
+var (
+	mqttService *somqtt.MqttService
+	wsService   *sows.WsService
+)
 
-func runHttpServer(config sohttp.SonoffHttp, certfile *string, keyfile *string, ch chan int) {
+// You can godoc functions
+
+func runHttpServer(certfile *string, keyfile *string, ch chan int) {
 	r := mux.NewRouter()
-	r.HandleFunc("/api/ws", (*wsService).ServeHTTP)
-	server := sohttp.HTTPServer{config.Addr, config.Port, mqttService}
-	r.HandleFunc("/switch/{deviceid}/{status}", server.ServeSwitch)
-	r.HandleFunc("/switch/{deviceid}/action", server.ServeAction)
-	r.HandleFunc("/dispatch/device", server.ServeHTTP)
+	r.HandleFunc("/api/ws", wsService.ServeHTTP)
+	server := sohttp.HTTPServer{sonoff.Config.Server.Addr, sonoff.Config.Server.Port, mqttService, wsService}
+	r.HandleFunc("/switch/{deviceid}/{status}", server.ServeSwitch).Methods("GET")
+	r.HandleFunc("/switch/{deviceid}", server.ServeAction).Methods("POST")
+	r.HandleFunc("/switch/{deviceid}", server.ServeStatus).Methods("GET")
+	r.HandleFunc("/dispatch/device", server.ServeDevice).Methods("GET")
 	http.Handle("/", r)
 
-	serveraddr := fmt.Sprintf("%v:%d", config.Addr, config.Port)
+	serveraddr := fmt.Sprintf("%v:%d", config.Config.Server.Addr, sonoff.Config.Server.Port)
 	err := http.ListenAndServeTLS(serveraddr, *certfile, *keyfile, nil)
 	outcome := 0
 	if err != nil {
@@ -65,12 +72,12 @@ func selectEvents(serverch <-chan int, mqttch <-chan *somqtt.MqttIncomingMessage
 }
 
 func serve(certfile *string, keyfile *string) (err error) {
-	mqttService, err = somqtt.NewMqttService(sonoffConfig.Mqtt)
+	mqttService, err = somqtt.NewMqttService(sonoff.Config.Mqtt)
 	checkErr(err)
 
 	wsService = sows.NewWsService(mqttService)
 	serverChan := make(chan int)
-	go runHttpServer(sonoffConfig.Server, certfile, keyfile, serverChan)
+	go runHttpServer(certfile, keyfile, serverChan)
 	err = selectEvents(serverChan, (*mqttService).IncomingMessages)
 	return
 }

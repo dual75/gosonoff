@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/dual75/gosonoff/somqtt"
@@ -24,68 +25,67 @@ type ConnectedDevice struct {
 	Model      string
 	Status     string
 
-	mqttservice   *somqtt.MqttService
-	conn          *websocket.Conn
-	replyCallback ReplyCallback
+	mqttservice  *somqtt.MqttService
+	conn         *websocket.Conn
+	replyChannel chan *WsMessage
+	writeMux     sync.Mutex
 }
 
 // You can godoc methods
 
 func RegisterConnectedDevice(conn *websocket.Conn, mqttservice *somqtt.MqttService) (result *ConnectedDevice, err error) {
-	req, err := recvMessage(conn, mqttservice)
+	msg, err := recvMessage(conn, mqttservice)
 	if err == nil {
-		if req.Action == "register" {
+		if msg.Action == "register" {
 			result = &ConnectedDevice{
-				Deviceid:    req.Deviceid,
-				Devicetype:  getDeviceType(req.Deviceid),
-				Romversion:  req.Romversion,
-				Model:       req.Model,
-				Status:      "unknown",
-				conn:        conn,
-				mqttservice: mqttservice,
+				Deviceid:     msg.Deviceid,
+				Devicetype:   getDeviceType(msg.Deviceid),
+				Romversion:   msg.Romversion,
+				Model:        msg.Model,
+				Status:       "unknown",
+				conn:         conn,
+				mqttservice:  mqttservice,
+				replyChannel: make(chan *WsMessage, 1),
+				writeMux:     sync.Mutex{},
 			}
-			go mqttservice.PublishToStatusTopic(req.Deviceid, "unknown")
-			go mqttservice.SubscribeAll(req.Deviceid)
+			go mqttservice.PublishToStatusTopic(msg.Deviceid, "unknown")
+			go mqttservice.SubscribeAll(msg.Deviceid)
 		} else {
-			err = fmt.Errorf("RegisterConnectedDevice :expected 'register' action, got '%v'", req.Action)
+			err = fmt.Errorf("RegisterConnectedDevice :expected 'register' action, got '%v'", msg.Action)
 		}
 	}
 	if err == nil {
-		response := NewWsMessage(req.Deviceid)
+		response := NewWsMessage(msg.Deviceid)
 		(*response.Error) = 0
 		err = conn.WriteJSON(response)
 	}
 	return
 }
 
+// ServeForever reads from ws in an infinite loop
+// new actions are dispatched to handleAction while
 func (d *ConnectedDevice) ServeForever() (err error) {
 	for {
-		req, err := recvMessage(d.conn, d.mqttservice)
+		msg, err := recvMessage(d.conn, d.mqttservice)
 		if err != nil {
 			log.Println("ServeForever, error in recvMessage:", err)
 			break
 		}
-		if req.Action != "" {
+		if msg.Action != "" {
 			// Current message is an action from device
-			response, err := d.handleAction(req)
+			response, err := d.handleAction(msg)
 			if err != nil {
 				log.Println("ServeForever, error in handleAction:", err)
 				continue
 			}
-			if response != nil {
-				err = d.conn.WriteJSON(response)
-				if err != nil {
-					log.Println("ServeForever, error in WriteJSON:", err)
-					break
-				}
+			err = d.conn.WriteJSON(response)
+			if err != nil {
+				log.Println("ServeForever, error in WriteJSON:", err)
+				break
 			}
 		} else {
-			// if a callback func has been set then execute it
-			if d.replyCallback != nil {
-				d.replyCallback(d, req)
-				// reset replyCallback
-				d.replyCallback = nil
-			}
+			//
+			d.replyChannel <- msg
 		}
 	}
 	return
@@ -93,26 +93,24 @@ func (d *ConnectedDevice) ServeForever() (err error) {
 
 func recvMessage(conn *websocket.Conn, mqttservice *somqtt.MqttService) (result *WsMessage, err error) {
 	err = conn.ReadJSON(result)
-	if err == nil {
-		go mqttservice.PublishToEventTopic(result.Deviceid, result)
-	} else {
+	if err != nil {
 		log.Println("recvMessage error:", err)
 	}
 	return
 }
 
-func (d *ConnectedDevice) handleAction(req *WsMessage) (*WsMessage, error) {
-	result := NewWsMessage(req.Deviceid)
+func (d *ConnectedDevice) handleAction(msg *WsMessage) (*WsMessage, error) {
+	result := NewWsMessage(msg.Deviceid)
 	(*result.Error) = WsReplyOk
 
-	marshaled, err := json.Marshal(req)
+	marshaled, err := json.Marshal(msg)
 	if err == nil {
-		go d.mqttservice.PublishToEventTopic((*req).Deviceid, marshaled)
-		switch req.Action {
+		go d.mqttservice.PublishToEventTopic((*msg).Deviceid, marshaled)
+		switch msg.Action {
 		case "date":
 			result.Date = time.Now()
 		case "update":
-			params := req.Params.(map[string]interface{})
+			params := msg.Params.(map[string]interface{})
 			status, ok := params["switch"]
 			if ok {
 				d.Status = status.(string)
@@ -141,13 +139,15 @@ func getDeviceType(deviceid string) (result string) {
 }
 
 func (d *ConnectedDevice) Write(data interface{}, callback ReplyCallback) (err error) {
+	d.writeMux.Lock()
+	defer d.writeMux.Unlock()
+
 	err = d.conn.WriteJSON(data)
-	var req *WsMessage
 	if err == nil {
-		req, err := recvMessage(d.conn, d.mqttservice)
-	}
-	if err == nil {
-		err = callback(d, req)
+		reply := <-d.replyChannel
+		if callback != nil {
+			err = callback(d, reply)
+		}
 	}
 	return
 }
