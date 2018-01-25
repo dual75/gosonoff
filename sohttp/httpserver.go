@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/dual75/gosonoff/somqtt"
-
 	"github.com/dual75/gosonoff/sonoff"
 	"github.com/dual75/gosonoff/sows"
 	"github.com/gorilla/mux"
@@ -16,7 +15,7 @@ import (
 type HTTPServer struct {
 	Ip          string
 	Port        int
-	MqttService *somqtt.MqttService
+	MqttService somqtt.Publisher
 	WsService   *sows.WsService
 }
 
@@ -58,7 +57,7 @@ func (server *HTTPServer) ServeSwitch(w http.ResponseWriter, r *http.Request) {
 		}
 		encoded, err := json.Marshal(request)
 		if err == nil {
-			go (*server.MqttService).PublishToActionTopic(deviceid, encoded)
+			go server.MqttService.PublishToActionTopic(deviceid, encoded)
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(MSGOk))
 		} else {
@@ -77,7 +76,7 @@ func (server *HTTPServer) ServeAction(w http.ResponseWriter, r *http.Request) {
 
 	bytes, err := ioutil.ReadAll(r.Body)
 	if err == nil {
-		go (*server.MqttService).PublishToActionTopic(deviceid, bytes)
+		go server.MqttService.PublishToActionTopic(deviceid, bytes)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(MSGOk))
 	} else {

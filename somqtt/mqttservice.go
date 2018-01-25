@@ -98,17 +98,6 @@ func (s *MqttService) unsubscribeTopic(deviceid string, topic string) (err error
 	return
 }
 
-func NewMqttService(config sonoff.SonoffMqtt) (result *MqttService, err error) {
-	result = &MqttService{}
-	copt := mqtt.NewClientOptions()
-	copt.AddBroker(config.Url)
-	copt.SetCleanSession(true)
-	copt.SetAutoReconnect(true)
-	result = &MqttService{config, mqtt.NewClient(copt), make(chan *MqttIncomingMessage)}
-	token := result.Client.Connect()
-	token.Wait()
-	if err = token.Error(); err != nil {
-		log.Fatal(err)
-	}
-	return
+func (s *MqttService) GetIncomingMessages() chan *MqttIncomingMessage {
+	return s.IncomingMessages
 }

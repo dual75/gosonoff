@@ -16,7 +16,7 @@ import (
 // You can godoc variables
 
 var (
-	mqttService *somqtt.MqttService
+	mqttService somqtt.Publisher
 	wsService   *sows.WsService
 )
 
@@ -32,7 +32,7 @@ func runHttpServer(certfile *string, keyfile *string, ch chan int) {
 	r.HandleFunc("/dispatch/device", server.ServeDevice).Methods("GET")
 	http.Handle("/", r)
 
-	serveraddr := fmt.Sprintf("%v:%d", config.Config.Server.Addr, sonoff.Config.Server.Port)
+	serveraddr := fmt.Sprintf("%v:%d", sonoff.Config.Server.Addr, sonoff.Config.Server.Port)
 	err := http.ListenAndServeTLS(serveraddr, *certfile, *keyfile, nil)
 	outcome := 0
 	if err != nil {
@@ -72,12 +72,14 @@ func selectEvents(serverch <-chan int, mqttch <-chan *somqtt.MqttIncomingMessage
 }
 
 func serve(certfile *string, keyfile *string) (err error) {
-	mqttService, err = somqtt.NewMqttService(sonoff.Config.Mqtt)
-	checkErr(err)
+	if sonoff.Config.Mqtt.Enabled {
+		mqttService, err = somqtt.NewMqttService(sonoff.Config.Mqtt)
+		checkErr(err)
+	}
 
 	wsService = sows.NewWsService(mqttService)
 	serverChan := make(chan int)
 	go runHttpServer(certfile, keyfile, serverChan)
-	err = selectEvents(serverChan, (*mqttService).IncomingMessages)
+	err = selectEvents(serverChan, mqttService.GetIncomingMessages())
 	return
 }

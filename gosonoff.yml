@@ -1,9 +1,9 @@
 server:
-  addr: "192.168.1.187"
+  addr: "localhost"
   port: 9080
 
 mqtt:
-  enabled: true
+  enabled: false
   url: 'tcp://192.168.1.145:1883'
   eventtopic: 'sonoff/%v/event'
   actiontopic: 'sonoff/%v/action'

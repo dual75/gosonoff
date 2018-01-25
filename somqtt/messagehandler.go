@@ -29,5 +29,5 @@ func (s *MessageHandler) SwitchHandler(client mqtt.Client, message mqtt.Message)
 }
 
 func (s *MessageHandler) enqueue(message *MqttIncomingMessage) {
-	(*s).MqttService.IncomingMessages <- message
+	s.MqttService.GetIncomingMessages() <- message
 }
