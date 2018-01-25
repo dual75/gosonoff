@@ -26,6 +26,7 @@ var (
 
 // You can godoc functions
 
+<<<<<<< HEAD
 func runHttpServer(certfile *string, keyfile *string) (server *http.Server, err error) {
 	router := mux.NewRouter()
 	router.HandleFunc("/api/ws", wsService.ServeHTTP)
@@ -40,6 +41,24 @@ func runHttpServer(certfile *string, keyfile *string) (server *http.Server, err 
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
+=======
+func runHttpServer(certfile *string, keyfile *string, ch chan int) {
+	r := mux.NewRouter()
+	r.HandleFunc("/api/ws", wsService.ServeHTTP)
+	server := sohttp.HTTPServer{sonoff.Config.Server.Addr, sonoff.Config.Server.Port, mqttService, wsService}
+	r.HandleFunc("/switch/{deviceid}/{status}", server.ServeSwitch).Methods("GET")
+	r.HandleFunc("/switch/{deviceid}", server.ServeAction).Methods("POST")
+	r.HandleFunc("/switch/{deviceid}", server.ServeStatus).Methods("GET")
+	r.HandleFunc("/dispatch/device", server.ServeDevice).Methods("GET")
+	http.Handle("/", r)
+
+	serveraddr := fmt.Sprintf("%v:%d", sonoff.Config.Server.Addr, sonoff.Config.Server.Port)
+	err := http.ListenAndServeTLS(serveraddr, *certfile, *keyfile, nil)
+	outcome := 0
+	if err != nil {
+		log.Println(err)
+		outcome = 1
+>>>>>>> bc360352886e08c46b3a57390c0afff96ffc7ee7
 	}
 
 	go func() {
