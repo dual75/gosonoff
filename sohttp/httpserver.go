@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type HTTPServer struct {
+type Handlers struct {
 	Ip          string
 	Port        int
 	MqttService somqtt.Publisher
@@ -27,7 +27,7 @@ type WebSocketConfig struct {
 }
 
 // ServeHTTP Single handle func
-func (server *HTTPServer) ServeDevice(w http.ResponseWriter, r *http.Request) {
+func (server *Handlers) ServeDevice(w http.ResponseWriter, r *http.Request) {
 	wsConfig := WebSocketConfig{0, "ok", server.Ip, server.Port}
 	log.Printf("request: URI = %v", r.RequestURI)
 	bytes, err := ioutil.ReadAll(r.Body)
@@ -41,7 +41,7 @@ func (server *HTTPServer) ServeDevice(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(wsConfig)
 }
 
-func (server *HTTPServer) ServeSwitch(w http.ResponseWriter, r *http.Request) {
+func (server *Handlers) ServeSwitch(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	deviceid, status := vars["deviceid"], vars["status"]
 
@@ -71,7 +71,7 @@ func (server *HTTPServer) ServeSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (server *HTTPServer) ServeAction(w http.ResponseWriter, r *http.Request) {
+func (server *Handlers) ServeAction(w http.ResponseWriter, r *http.Request) {
 	deviceid := mux.Vars(r)["deviceid"]
 
 	bytes, err := ioutil.ReadAll(r.Body)
@@ -86,7 +86,7 @@ func (server *HTTPServer) ServeAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (server *HTTPServer) ServeStatus(w http.ResponseWriter, r *http.Request) {
+func (server *Handlers) ServeStatus(w http.ResponseWriter, r *http.Request) {
 	deviceid := mux.Vars(r)["deviceid"]
 
 	device, err := server.WsService.DeviceById(deviceid)

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"time"
 
 	"github.com/dual75/gosonoff/somqtt"
 	"github.com/dual75/gosonoff/sonoff"
@@ -16,70 +20,87 @@ import (
 // You can godoc variables
 
 var (
-	mqttService somqtt.Publisher
-	wsService   *sows.WsService
+	publisher somqtt.Publisher
+	wsService *sows.WsService
 )
 
 // You can godoc functions
 
-func runHttpServer(certfile *string, keyfile *string, ch chan int) {
-	r := mux.NewRouter()
-	r.HandleFunc("/api/ws", wsService.ServeHTTP)
-	server := sohttp.HTTPServer{sonoff.Config.Server.Addr, sonoff.Config.Server.Port, mqttService, wsService}
-	r.HandleFunc("/switch/{deviceid}/{status}", server.ServeSwitch).Methods("GET")
-	r.HandleFunc("/switch/{deviceid}", server.ServeAction).Methods("POST")
-	r.HandleFunc("/switch/{deviceid}", server.ServeStatus).Methods("GET")
-	r.HandleFunc("/dispatch/device", server.ServeDevice).Methods("GET")
-	http.Handle("/", r)
-
-	serveraddr := fmt.Sprintf("%v:%d", sonoff.Config.Server.Addr, sonoff.Config.Server.Port)
-	err := http.ListenAndServeTLS(serveraddr, *certfile, *keyfile, nil)
-	outcome := 0
-	if err != nil {
-		log.Println(err)
-		outcome = 1
+func runHttpServer(certfile *string, keyfile *string) (server *http.Server, err error) {
+	router := mux.NewRouter()
+	router.HandleFunc("/api/ws", wsService.ServeHTTP)
+	handlers := sohttp.Handlers{sonoff.Config.Server.Addr, sonoff.Config.Server.Port, publisher, wsService}
+	router.HandleFunc("/switch/{deviceid}/{status}", handlers.ServeSwitch).Methods("GET")
+	router.HandleFunc("/switch/{deviceid}", handlers.ServeAction).Methods("POST")
+	router.HandleFunc("/switch/{deviceid}", handlers.ServeStatus).Methods("GET")
+	router.HandleFunc("/dispatch/device", handlers.ServeDevice).Methods("GET")
+	server = &http.Server{
+		Addr:           fmt.Sprintf("%v:%d", sonoff.Config.Server.Addr, sonoff.Config.Server.Port),
+		Handler:        router,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
-	ch <- outcome
+
+	go func() {
+		server.ListenAndServeTLS(*certfile, *keyfile)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+
+	return server, err
 }
 
-func selectEvents(serverch <-chan int, mqttch <-chan *somqtt.MqttIncomingMessage) (err error) {
+func selectEvents(mqttch <-chan *somqtt.MqttIncomingMessage, signals <-chan os.Signal) (err error) {
 	for {
 		select {
-		case outcome := <-serverch:
-			if outcome == 1 {
-				err = fmt.Errorf("error outcome %v from runHttpServer", outcome)
-			}
-			break
 		case message := <-mqttch:
 			switch message.Code {
 			case somqtt.CodeAction:
-				log.Println("forwarding ", (*message).Message)
-				err = wsService.WriteTo((*message).Deviceid, (*message).Message, nil)
+				log.Println("forwarding ", message.Message)
+				err = wsService.WriteTo(message.Deviceid, message.Message, nil)
 			case somqtt.CodeSwitch:
 				flag := message.Message.(*string)
-				err = wsService.Switch((*message).Deviceid, *flag)
+				err = wsService.Switch(message.Deviceid, *flag)
 			}
 			if err != nil {
 				log.Println(err)
-				wsService.DiscardDevice((*message).Deviceid)
-				mqttService.UnsubscribeAll((*message).Deviceid)
+				wsService.DiscardDevice(message.Deviceid)
+				publisher.UnsubscribeAll(message.Deviceid)
 			} else {
 				log.Printf("message code %v, processed without errors\n", message.Code)
 			}
+		case <-signals:
+			log.Println("caught interrupt signal")
+			break
 		}
 	}
 	return
 }
 
 func serve(certfile *string, keyfile *string) (err error) {
-	if sonoff.Config.Mqtt.Enabled {
-		mqttService, err = somqtt.NewMqttService(sonoff.Config.Mqtt)
-		checkErr(err)
+	publisher, err = somqtt.NewPublisher(sonoff.Config.Mqtt)
+	checkErr(err)
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+
+	wsService = sows.NewWsService(publisher)
+	server, err := runHttpServer(certfile, keyfile)
+
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	wsService = sows.NewWsService(mqttService)
-	serverChan := make(chan int)
-	go runHttpServer(certfile, keyfile, serverChan)
-	err = selectEvents(serverChan, mqttService.GetIncomingMessages())
+	err = selectEvents(publisher.GetIncomingMessages(), interrupt)
+	if err == nil {
+		// The request has a timeout, so create a context that is
+		// canceled automatically when the timeout expires.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		server.Shutdown(ctx)
+		defer cancel()
+	}
+
 	return
 }
