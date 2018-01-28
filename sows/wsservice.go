@@ -18,7 +18,7 @@ import (
 // WsService is a service object which acts as a facade for WebSocket communications
 type WsService struct {
 	devices     map[string]*ConnectedDevice
-	mqttservice somqtt.Publisher
+	mqttservice somqtt.MqttService
 	upgrader    websocket.Upgrader
 	dataMux     sync.Mutex
 }
@@ -26,7 +26,7 @@ type WsService struct {
 // You can godoc functions
 
 // NewWsService creates a new WsService
-func NewWsService(mqttservice somqtt.Publisher) (result *WsService) {
+func NewWsService(mqttservice somqtt.MqttService) (result *WsService) {
 	result = &WsService{
 		mqttservice: mqttservice,
 		upgrader: websocket.Upgrader{

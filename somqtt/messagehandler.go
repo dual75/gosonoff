@@ -9,7 +9,7 @@ import (
 
 type MessageHandler struct {
 	Deviceid    string
-	MqttService *MqttService
+	MqttService *PahoMqttService
 }
 
 func (s *MessageHandler) ActionHandler(client mqtt.Client, message mqtt.Message) {

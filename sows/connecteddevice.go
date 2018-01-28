@@ -25,7 +25,7 @@ type ConnectedDevice struct {
 	Model      string
 	Status     string
 
-	mqttservice  somqtt.Publisher
+	mqttservice  somqtt.MqttService
 	conn         *websocket.Conn
 	replyChannel chan *WsMessage
 	writeMux     sync.Mutex
@@ -33,7 +33,7 @@ type ConnectedDevice struct {
 
 // You can godoc methods
 
-func RegisterConnectedDevice(conn *websocket.Conn, mqttservice somqtt.Publisher) (result *ConnectedDevice, err error) {
+func RegisterConnectedDevice(conn *websocket.Conn, mqttservice somqtt.MqttService) (result *ConnectedDevice, err error) {
 	msg, err := recvMessage(conn, mqttservice)
 	if err == nil {
 		if msg.Action == "register" {
@@ -91,7 +91,7 @@ func (d *ConnectedDevice) ServeForever() (err error) {
 	return
 }
 
-func recvMessage(conn *websocket.Conn, mqttservice somqtt.Publisher) (result *WsMessage, err error) {
+func recvMessage(conn *websocket.Conn, mqttservice somqtt.MqttService) (result *WsMessage, err error) {
 	err = conn.ReadJSON(result)
 	if err != nil {
 		log.Println("recvMessage error:", err)

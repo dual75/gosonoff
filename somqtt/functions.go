@@ -7,13 +7,13 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-func NewPublisher(config sonoff.SonoffMqtt) (result Publisher, err error) {
+func NewMqttService(config sonoff.SonoffMqtt) (result MqttService, err error) {
 	if config.Enabled {
 		copt := mqtt.NewClientOptions()
 		copt.AddBroker(config.Url)
 		copt.SetCleanSession(true)
 		copt.SetAutoReconnect(true)
-		mqttservice := &MqttService{config, mqtt.NewClient(copt), make(chan *MqttIncomingMessage)}
+		mqttservice := &PahoMqttService{config, mqtt.NewClient(copt), make(chan *MqttIncomingMessage)}
 		token := mqttservice.Client.Connect()
 		token.Wait()
 		if err = token.Error(); err != nil {
