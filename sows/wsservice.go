@@ -28,6 +28,7 @@ type WsService struct {
 // NewWsService creates a new WsService
 func NewWsService(mqttservice somqtt.MqttService) (result *WsService) {
 	result = &WsService{
+		devices: make(map[string]*ConnectedDevice),
 		mqttservice: mqttservice,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -91,7 +92,7 @@ func (ws *WsService) Switch(deviceId string, flag string) (err error) {
 		},
 	}
 	successCallback := func(device *ConnectedDevice, message *WsMessage) (err error) {
-		go ws.mqttservice.PublishToStatusTopic(deviceId, (*device).Status)
+		go ws.mqttservice.PublishToStatusTopic(deviceId, flag)
 		return
 	}
 	err = ws.WriteTo(deviceId, request, successCallback)
@@ -124,7 +125,7 @@ func (ws *WsService) DiscardDevice(deviceId string) {
 }
 
 func (ws *WsService) DeviceById(deviceid string) (device *ConnectedDevice, err error) {
-	if value, ok := ws.devices[deviceid]; !ok {
+	if value, ok := ws.devices[deviceid]; ok {
 		device = value
 	} else {
 		err = fmt.Errorf("Unknown device %v", deviceid)

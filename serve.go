@@ -14,6 +14,8 @@ import (
 
 	"github.com/dual75/gosonoff/sohttp"
 	"github.com/dual75/gosonoff/sows"
+
+"github.com/gorilla/mux"
 )
 
 // You can godoc variables
@@ -27,10 +29,9 @@ var (
 
 func makeHttpServer(certfile *string, keyfile *string) (server *http.Server, err error) {
 	handlers := sohttp.Handlers{sonoff.Config.Server.Addr, sonoff.Config.Server.Port, mqttService, wsService}
-	router := http.NewServeMux()
+	router := mux.NewRouter()
 	router.HandleFunc("/switch/{deviceid}/{status}", handlers.HandleSwitch)
 	router.HandleFunc("/switch/{deviceid}", handlers.HandleAction)
-	router.HandleFunc("/switch/{deviceid}", handlers.HandleStatus)
 	router.HandleFunc("/dispatch/device", handlers.HandleDevice)
 	router.Handle("/api/ws", wsService)
 	server = &http.Server{
@@ -64,7 +65,7 @@ func selectEvents(mqttch <-chan *somqtt.MqttIncomingMessage, signals <-chan os.S
 			}
 		case <-signals:
 			log.Println("caught interrupt signal")
-			break
+			return
 		}
 	}
 	return
@@ -93,7 +94,7 @@ func serve(certfile *string, keyfile *string) (err error) {
 
 	err = selectEvents(mqttService.GetIncomingMessages(), interrupt)
 	if err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 2 * time.Second)
 		server.Shutdown(ctx)
 		defer cancel()
 	}

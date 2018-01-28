@@ -19,11 +19,11 @@ type ReplyCallback func(*ConnectedDevice, *WsMessage) (err error)
 
 // ConnectedDevice is a structure incapsulating device informations and actions
 type ConnectedDevice struct {
-	Deviceid   string
-	Devicetype string
-	Romversion string
-	Model      string
-	Status     string
+	Deviceid   string `json:"deviceid"`
+	Devicetype string `json:"devicetype"`
+	Romversion string `json:"romversion"`
+	Model      string `json:"model"`
+	Status     string `json:"status"`
 
 	mqttservice  somqtt.MqttService
 	conn         *websocket.Conn
@@ -56,7 +56,7 @@ func RegisterConnectedDevice(conn *websocket.Conn, mqttservice somqtt.MqttServic
 	}
 	if err == nil {
 		response := NewWsMessage(msg.Deviceid)
-		(*response.Error) = 0
+		response.Error = new(int)
 		err = conn.WriteJSON(response)
 	}
 	return
@@ -91,17 +91,18 @@ func (d *ConnectedDevice) ServeForever() (err error) {
 	return
 }
 
-func recvMessage(conn *websocket.Conn, mqttservice somqtt.MqttService) (result *WsMessage, err error) {
-	err = conn.ReadJSON(result)
+func recvMessage(conn *websocket.Conn, mqttservice somqtt.MqttService) (*WsMessage, error) {
+	result := &WsMessage{}
+	err := conn.ReadJSON(result)
 	if err != nil {
 		log.Println("recvMessage error:", err)
 	}
-	return
+	return result, err
 }
 
 func (d *ConnectedDevice) handleAction(msg *WsMessage) (*WsMessage, error) {
 	result := NewWsMessage(msg.Deviceid)
-	(*result.Error) = WsReplyOk
+	result.Error = new(int)
 
 	marshaled, err := json.Marshal(msg)
 	if err == nil {

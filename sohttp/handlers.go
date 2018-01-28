@@ -69,31 +69,32 @@ func (server *Handlers) HandleSwitch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (server *Handlers) HandleAction(w http.ResponseWriter, r *http.Request) {
+	var err error
+	var bytes []byte
+
 	deviceid := mux.Vars(r)["deviceid"]
-	status, message := http.StatusOK, MSGOk
-	if r.Method == http.MethodPost {
-		bytes, err := ioutil.ReadAll(r.Body)
+	status, bytes := http.StatusOK, []byte(MSGOk)
+
+	switch r.Method {
+	case http.MethodPost:
+		bytes, err = ioutil.ReadAll(r.Body)
 		if err == nil {
 			go server.MqttService.PublishToActionTopic(deviceid, bytes)
 		} else {
-			status, message = http.StatusInternalServerError, err.Error()
+			status, bytes = http.StatusInternalServerError, []byte(err.Error())
 		}
-	} else {
-		status, message = http.StatusMethodNotAllowed, MSGError
+	case http.MethodGet:
+		device, err := server.WsService.DeviceById(deviceid)
+		if err == nil {
+			bytes, err = json.Marshal(device)
+		} else {
+			status = http.StatusNotFound
+			bytes = []byte(err.Error())
+		}
+		default:
+			status, bytes = http.StatusMethodNotAllowed, []byte(MSGError)
 	}
+
 	w.WriteHeader(status)
-	w.Write([]byte(message))
-}
-
-func (server *Handlers) HandleStatus(w http.ResponseWriter, r *http.Request) {
-	deviceid := mux.Vars(r)["deviceid"]
-
-	device, err := server.WsService.DeviceById(deviceid)
-	if err == nil {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(device)
-	} else {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(err.Error()))
-	}
+	w.Write(bytes)
 }
